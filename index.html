@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <title>真實定位打卡系統</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding-top: 50px; background-color: #f4f4f4; }
+    .loader { border: 5px solid #f3f3f3; border-top: 5px solid #06C755; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <h2 id="msg">📡 正在讀取您的真實位置...</h2>
+  <div class="loader" id="loader"></div>
+  
+  <script>
+    var myLiffId = '2011757586-A1bHf6Vg';
+
+    function showMsg(text) {
+      document.getElementById('msg').innerText = text;
+      document.getElementById('msg').style.color = "red";
+      document.getElementById('loader').style.display = 'none';
+    }
+
+    window.onload = function() {
+      liff.init({ liffId: myLiffId }).then(() => {
+        if (!liff.isLoggedIn()) { 
+          liff.login(); 
+          return; 
+        }
+        
+        document.getElementById('msg').innerText = "✅ 系統連線成功，等待手機 GPS 授權...";
+        
+        // 呼叫手機最底層 GPS
+        navigator.geolocation.getCurrentPosition(
+          function(position) {
+            document.getElementById('msg').innerText = "✅ 成功抓到座標！正在傳送打卡...";
+            var lat = position.coords.latitude;
+            var lon = position.coords.longitude;
+            
+            // 抓取當下時間，並將座標與時間打包成 Base64 加密亂碼
+         var now = Date.now();
+         var payload = lat + "," + lon + "," + now;
+         var encodedCode = btoa(payload); 
+
+         liff.sendMessages([{
+           type: 'text',
+           text: '📍系統定位打卡\n[驗證碼:' + encodedCode + ']'
+         }]).then(function() {
+              liff.closeWindow(); // 瞬間關閉視窗
+            }).catch(function(error) {
+              showMsg('❌ 傳送訊息失敗：' + error);
+            });
+          },
+          function(error) {
+            var errorMsg = "";
+            switch(error.code) {
+              case error.PERMISSION_DENIED: errorMsg = "手機設定拒絕了存取位置 (請去設定打開權限)"; break;
+              case error.POSITION_UNAVAILABLE: errorMsg = "收不到 GPS 訊號 (請靠近窗戶)"; break;
+              case error.TIMEOUT: errorMsg = "讀取 GPS 逾時"; break;
+              default: errorMsg = "發生未知錯誤"; break;
+            }
+            showMsg('⚠️ ' + errorMsg);
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      }).catch(function(err) {
+        showMsg('❌ LIFF 啟動失敗：' + err);
+      });
+    };
+  </script>
+</body>
+</html>
